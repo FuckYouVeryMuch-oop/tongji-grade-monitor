@@ -1,0 +1,11 @@
+{
+  "username": "",
+  "password": "",
+  "check_interval": 800,
+  "re_login_interval": 1700,
+  "max_retries": 3,
+  "save_to_file": true,
+  "data_file": "grades_data.json",
+  "log_level": "INFO",
+  "headless_mode": false
+}
