@@ -1,7 +1,9 @@
 import time
 import json
 import requests
-from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import re
 
 class GradeFetcher:
     def __init__(self, login_manager, config):
@@ -9,10 +11,23 @@ class GradeFetcher:
         self.config = config
         self.last_update_time = ""
         self.grade_history = []
+        self.session = self._create_session()
         self.load_history()
-    
+
+    def _create_session(self):
+        session = requests.Session()
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        return session
+
     def load_history(self):
-        """加载历史成绩数据"""
         try:
             if self.config.get('save_to_file', True):
                 with open(self.config.get('data_file', 'grades_data.json'), 'r', encoding='utf-8') as f:
@@ -22,133 +37,138 @@ class GradeFetcher:
         except (FileNotFoundError, json.JSONDecodeError):
             self.grade_history = []
             self.last_update_time = ""
-    
+
     def save_history(self, grades_data):
-        """保存历史成绩数据"""
         if not self.config.get('save_to_file', True):
             return
-        
         data = {
             'last_update': self.last_update_time,
-            'history': self.grade_history[-50:],  # 只保留最近50次
+            'history': self.grade_history[-50:],
             'last_check': time.strftime('%Y-%m-%d %H:%M:%S')
         }
-        
         try:
             with open(self.config.get('data_file', 'grades_data.json'), 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"保存历史数据失败: {e}")
-    
-    def fetch_grades(self):
-        """获取成绩数据"""
+            print(f"淇濆瓨鍘嗗彶鏁版嵁澶辫触: {e}")
+
+    def _fetch_via_browser(self):
         try:
-            # 获取当前cookies
-            cookies = self.login_manager.get_cookies()
-            if not cookies:
-                print("没有有效的cookies，请先登录")
+            driver = self.login_manager.driver
+            if not driver:
                 return None
-            
-            # 构造请求
             timestamp = int(time.time() * 1000)
-            url = f"https://1.tongji.edu.cn/api/scoremanagementservice/scoreGrades/getMyGrades"
-            
-            params = {
-                'studentId': self.config.get('student_id', self.config['username']),
-                '_t': timestamp
-            }
-            
-            headers = {
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'zh-CN,zh;q=0.9',
-                'Referer': 'https://1.tongji.edu.cn/oldStysteMyGrades',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            
-            print(f"[{time.strftime('%H:%M:%S')}] 正在获取成绩...")
-            response = requests.get(url, params=params, headers=headers, cookies=cookies, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('code') == 200:
-                    print(f"[{time.strftime('%H:%M:%S')}] 成功获取成绩数据")
-                    return data
-                else:
-                    print(f"API返回错误: {data.get('msg')}")
-            else:
-                print(f"请求失败，状态码: {response.status_code}")
-                
-        except requests.exceptions.RequestException as e:
-            print(f"网络请求失败: {e}")
+            student_id = self.config.get('student_id', self.config['username'])
+            url = f"https://1.tongji.edu.cn/api/scoremanagementservice/scoreGrades/getMyGrades?studentId={student_id}&_t={timestamp}"
+            driver.get(url)
+            time.sleep(2)
+            from selenium.webdriver.common.by import By
+            try:
+                pre = driver.find_element(By.TAG_NAME, "pre")
+                raw = pre.text
+            except:
+                raw = driver.page_source
+            try:
+                data = json.loads(raw)
+            except:
+                match = re.search(r'\{.*"code".*\}', raw, re.DOTALL)
+                data = json.loads(match.group()) if match else None
+            if isinstance(data, dict) and data.get('code') == 200:
+                print(f"[{time.strftime('%H:%M:%S')}] 鎴愬姛鑾峰彇鎴愮哗鏁版嵁 (via browser)")
+                return data
+            return None
         except Exception as e:
-            print(f"获取成绩时出错: {e}")
-        
-        return None
-    
+            print(f"娴忚鍣ㄥ厹搴曚篃澶辫触浜? {e}")
+            return None
+
+    def fetch_grades(self):
+        cookies = self.login_manager.get_cookies()
+        if not cookies:
+            print("娌℃湁鏈夋晥鐨刢ookies锛岃鍏堢櫥褰?)
+            return None
+
+        timestamp = int(time.time() * 1000)
+        url = "https://1.tongji.edu.cn/api/scoremanagementservice/scoreGrades/getMyGrades"
+        params = {'studentId': self.config.get('student_id', self.config['username']), '_t': timestamp}
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Referer': 'https://1.tongji.edu.cn/oldStysteMyGrades',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Connection': 'keep-alive',
+        }
+
+        for attempt in range(1, 4):
+            print(f"[{time.strftime('%H:%M:%S')}] 姝ｅ湪鑾峰彇鎴愮哗... (绗瑊attempt}娆?")
+            try:
+                resp = self.session.get(url, params=params, headers=headers, cookies=cookies, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('code') == 200:
+                        print(f"[{time.strftime('%H:%M:%S')}] 鎴愬姛鑾峰彇鎴愮哗鏁版嵁")
+                        return data
+                    print(f"API杩斿洖閿欒: {data.get('msg')}")
+                    return None
+            except requests.exceptions.SSLError:
+                print("  SSL 閿欒锛屽皾璇曡烦杩囪瘉涔﹂獙璇?..")
+                try:
+                    resp = self.session.get(url, params=params, headers=headers, cookies=cookies, timeout=15, verify=False)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get('code') == 200:
+                            print(f"[{time.strftime('%H:%M:%S')}] 鎴愬姛鑾峰彇鎴愮哗鏁版嵁 (verify=False)")
+                            return data
+                except Exception as e2:
+                    print(f"  楠岃瘉澶辫触: {e2}")
+            except Exception as e:
+                print(f"  璇锋眰寮傚父: {e}")
+            time.sleep(2 * attempt)
+
+        print(f"[{time.strftime('%H:%M:%S')}] requests 鍏ㄩ儴澶辫触锛屾敼鐢ㄦ祻瑙堝櫒鑾峰彇...")
+        return self._fetch_via_browser()
+
     def check_for_updates(self, grades_data):
-        """检查是否有新成绩"""
         if not grades_data or 'data' not in grades_data:
             return False, None
-        
-        # 获取最新的更新时间
         latest_time = self._extract_latest_update_time(grades_data)
-        
         if not latest_time:
             return False, None
-        
-        # 记录本次查询
         check_time = time.strftime('%Y-%m-%d %H:%M:%S')
         self.grade_history.append({
             'check_time': check_time,
             'latest_update': latest_time,
             'has_new': latest_time != self.last_update_time and self.last_update_time != ""
         })
-        
-        # 检查是否有更新
         if self.last_update_time and latest_time > self.last_update_time:
-            # 找到具体的新成绩
             new_courses = self._find_new_courses(grades_data)
-            
-            # 更新最后更新时间
             old_time = self.last_update_time
             self.last_update_time = latest_time
-            
-            # 保存历史
             self.save_history(grades_data)
-            
             return True, {
                 'new_update_time': latest_time,
                 'old_update_time': old_time,
                 'new_courses': new_courses,
                 'total_data': grades_data
             }
-        
-        # 首次运行或没有新成绩
         if not self.last_update_time:
             self.last_update_time = latest_time
             self.save_history(grades_data)
-        
         return False, None
-    
+
     def _extract_latest_update_time(self, grades_data):
-        """提取最新的更新时间"""
         latest_time = ""
-        
         try:
             for term in grades_data['data'].get('term', []):
                 for course in term.get('creditInfo', []):
                     update_time = course.get('updateTime', '')
                     if update_time and update_time > latest_time:
                         latest_time = update_time
-        except Exception as e:
-            print(f"提取更新时间失败: {e}")
-        
+        except Exception:
+            pass
         return latest_time
-    
+
     def _find_new_courses(self, grades_data):
-        """找到具体的新成绩课程"""
         new_courses = []
-        
         try:
             for term in grades_data['data'].get('term', []):
                 for course in term.get('creditInfo', []):
@@ -160,15 +180,12 @@ class GradeFetcher:
                             'update_time': update_time,
                             'term': term.get('termName', '')
                         })
-        except Exception as e:
-            print(f"查找新课程失败: {e}")
-        
+        except Exception:
+            pass
         return new_courses
-    
+
     def get_summary(self, grades_data):
-        """获取成绩摘要"""
         if not grades_data or 'data' not in grades_data:
-            return "无数据"
-        
+            return "鏃犳暟鎹?
         data = grades_data['data']
-        return f"平均绩点: {data.get('totalGradePoint', 'N/A')}, 实际学分: {data.get('actualCredit', 'N/A')}"
+        return f"骞冲潎缁╃偣: {data.get('totalGradePoint', 'N/A')}, 瀹為檯瀛﹀垎: {data.get('actualCredit', 'N/A')}"

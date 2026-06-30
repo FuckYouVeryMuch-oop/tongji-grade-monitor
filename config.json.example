@@ -7,5 +7,5 @@
   "save_to_file": true,
   "data_file": "grades_data.json",
   "log_level": "INFO",
-  "headless_mode": false
+  "headless_mode": true
 }

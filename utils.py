@@ -1,4 +1,4 @@
-﻿import json
+import json
 import time
 from datetime import datetime
 
@@ -27,7 +27,7 @@ def get_default_config():
         "save_to_file": True,
         "data_file": "grades_data.json",
         "log_level": "INFO",
-        "headless_mode": False
+        "headless_mode": True
     }
 
 def save_config(config, config_file='config.json'):
