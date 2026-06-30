@@ -1,18 +1,30 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
+
+tasklist /fi "imagename eq pythonw.exe" 2>nul | find /i "pythonw.exe" >nul
+if %errorlevel%==0 (
+    echo =====================================
+    echo   Tongji Grade Monitor
+    echo =====================================
+    echo.
+    echo Already running! Check task manager.
+    echo See monitor.log for details.
+    echo.
+    echo This window will close in 10 seconds...
+    ping -n 11 127.0.0.1 >nul
+    exit
+)
+
 echo =====================================
 echo   Tongji Grade Monitor
-echo   成绩监控 - 后台运行
 echo =====================================
 echo.
-echo 正在启动，请稍候...
-start /min "" "D:\_DevTools\Annaconda\pythonw.exe" main.py
+echo Starting background monitor...
+start /min "" pythonw main.py
 echo.
-echo ✅ 已启动！可通过以下方式确认运行状态：
-echo    - 任务管理器查看 pythonw.exe 进程
-echo    - 查看 monitor.log 日志文件
+echo Started! Check task manager for pythonw.exe
+echo See monitor.log for details.
 echo.
-echo 窗口将在 3 秒后自动关闭...
-ping -n 4 127.0.0.1 >nul
+echo This window will close in 10 seconds...
+ping -n 11 127.0.0.1 >nul
 exit

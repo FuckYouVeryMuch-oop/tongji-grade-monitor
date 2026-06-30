@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -12,8 +12,9 @@ config.json
 # Data
 grades_data.json
 
-# Screenshots
+# Screenshots (root only - exclude random pngs, but keep images/ folder)
 *.png
+!images/*.png
 
 # IDE
 .vscode/

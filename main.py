@@ -9,8 +9,13 @@ from grade_fetcher import GradeFetcher
 from notifier import Notifier
 from utils import load_config, print_banner, format_time_delta, setup_logger
 
-# 全局日志
 log = setup_logger()
+
+def safe_stdout(text):
+    """安全输出到控制台（兼容 pythonw 无窗口模式）"""
+    if sys.stdout:
+        sys.stdout.write(text)
+        sys.stdout.flush()
 
 class GradeMonitor:
     def __init__(self, config):
@@ -59,7 +64,6 @@ class GradeMonitor:
 
             self.last_check_time = time.time()
             return True
-
         except Exception as e:
             log.error(f"检查过程中出错: {e}", exc_info=True)
             return False
@@ -79,12 +83,9 @@ class GradeMonitor:
                     for i in range(int(wait_time), 0, -1):
                         if not self.running:
                             break
-                        sys.stdout.write(f"\r下次检查 {format_time_delta(i)}后")
-                        sys.stdout.flush()
+                        safe_stdout(f"\r下次检查 {format_time_delta(i)}后")
                         time.sleep(1)
-                    if self.running:
-                        sys.stdout.write("\r" + " " * 50 + "\r")
-                        sys.stdout.flush()
+                    safe_stdout("\r" + " " * 50 + "\r")
                 if self.running:
                     self.run_once()
         except KeyboardInterrupt:
