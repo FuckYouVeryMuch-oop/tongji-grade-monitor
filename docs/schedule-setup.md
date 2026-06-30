@@ -1,4 +1,4 @@
-﻿# Schedule Setup Guide
+# Schedule Setup Guide
 
 ## Windows Task Scheduler
 

@@ -1,4 +1,4 @@
-﻿# Tongji Grade Monitor
+# Tongji Grade Monitor
 
 >同济大学成绩监控脚本，登录教务系统自动查询成绩更新并弹窗通知。
 
@@ -39,3 +39,8 @@ python main.py
 ### 定时任务（Windows）
 
 用任务计划程序（Task Scheduler）每日定时运行 `python main.py`，详情见 `docs/schedule-setup.md`。
+
+## 日志
+
+程序运行时会自动生成 monitor.log 日志文件，记录每次检查的详细信息。
+遇到问题时可以先查看日志排查。

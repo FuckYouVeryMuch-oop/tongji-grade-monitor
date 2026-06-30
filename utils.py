@@ -1,6 +1,29 @@
 import json
 import time
+import logging
+import os
 from datetime import datetime
+
+def setup_logger():
+    """配置日志：同时输出到控制台和 monitor.log"""
+    logger = logging.getLogger("GradeMonitor")
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()
+
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(formatter)
+
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "monitor.log")
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+
+    logger.addHandler(ch)
+    logger.addHandler(fh)
+    return logger
 
 def load_config(config_file='config.json'):
     """加载配置文件"""
@@ -53,7 +76,6 @@ def format_time_delta(seconds):
     """格式化时间差"""
     hours, remainder = divmod(seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
-
     parts = []
     if hours > 0:
         parts.append(f"{int(hours)}小时")
@@ -61,5 +83,4 @@ def format_time_delta(seconds):
         parts.append(f"{int(minutes)}分钟")
     if seconds > 0 or not parts:
         parts.append(f"{int(seconds)}秒")
-
     return "".join(parts)
