@@ -3,7 +3,6 @@ import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import re
 import logging
 
 log = logging.getLogger("GradeMonitor")
@@ -70,19 +69,51 @@ class GradeFetcher:
             time.sleep(2)
             from selenium.webdriver.common.by import By
 
+            # 优先获取纯文本内容，避免 HTML 标签干扰
+            raw = None
             try:
-                pre = driver.find_element(By.TAG_NAME, "pre")
-                raw = pre.text
+                body = driver.find_element(By.TAG_NAME, "body")
+                raw = body.text
             except Exception:
-                raw = driver.page_source
+                try:
+                    pre = driver.find_element(By.TAG_NAME, "pre")
+                    raw = pre.text
+                except Exception:
+                    raw = driver.page_source
+
+            if not raw or not raw.strip():
+                return None
+
+            # Try direct JSON parse first
             try:
                 data = json.loads(raw)
+                if isinstance(data, dict) and data.get("code") == 200:
+                    log.info("成功获取成绩数据 (via browser)")
+                    return data
             except Exception:
-                match = re.search(r'\{.*"code".*\}', raw, re.DOTALL)
-                data = json.loads(match.group()) if match else None
-            if isinstance(data, dict) and data.get("code") == 200:
-                log.info("成功获取成绩数据 (via browser)")
-                return data
+                pass
+
+            # Fallback: brace-matching extraction (more accurate than regex)
+            try:
+                start = raw.find("{")
+                if start >= 0:
+                    depth = 0
+                    for i in range(start, len(raw)):
+                        ch = raw[i]
+                        if ch == "{":
+                            depth += 1
+                        elif ch == "}":
+                            depth -= 1
+                            if depth == 0:
+                                json_str = raw[start:i + 1]
+                                data = json.loads(json_str)
+                                if isinstance(data, dict) and data.get("code") == 200:
+                                    log.info("成功获取成绩数据 (via browser - extracted)")
+                                    return data
+                                break
+            except Exception:
+                pass
+
             return None
         except Exception as e:
             log.error(f"浏览器兜底也失败了: {e}")
