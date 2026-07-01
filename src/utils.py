@@ -1,23 +1,30 @@
 import json
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from datetime import datetime
 
+
 def setup_logger():
-    """配置日志：同时输出到控制台和 monitor.log"""
+    """配置日志：控制台输出 + 轮转文件日志（最大 5MB，覆盖旧日志）"""
     logger = logging.getLogger("GradeMonitor")
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
 
-    formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+    formatter = logging.Formatter(
+        "[%(asctime)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"
+    )
 
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     ch.setFormatter(formatter)
 
-    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "monitor.log")
-    fh = logging.FileHandler(log_file, encoding="utf-8")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    log_file = os.path.join(script_dir, "..", "monitor.log")
+    fh = RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=0, encoding="utf-8"
+    )
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
 
@@ -25,10 +32,13 @@ def setup_logger():
     logger.addHandler(fh)
     return logger
 
-def load_config(config_file='config.json'):
+
+def load_config(config_file="config.json"):
     """加载配置文件"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(script_dir, "..", config_file)
     try:
-        with open(config_file, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"配置文件 {config_file} 不存在")
@@ -38,6 +48,7 @@ def load_config(config_file='config.json'):
     except json.JSONDecodeError as e:
         print(f"配置文件格式错误: {e}")
         return get_default_config()
+
 
 def get_default_config():
     """获取默认配置"""
@@ -50,17 +61,9 @@ def get_default_config():
         "save_to_file": True,
         "data_file": "grades_data.json",
         "log_level": "INFO",
-        "headless_mode": True
+        "headless_mode": True,
     }
 
-def save_config(config, config_file='config.json'):
-    """保存配置文件"""
-    try:
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-        print(f"配置已保存到 {config_file}")
-    except Exception as e:
-        print(f"保存配置失败: {e}")
 
 def print_banner():
     """打印程序横幅"""
@@ -71,6 +74,7 @@ def print_banner():
 =====================================
 """
     print(banner)
+
 
 def format_time_delta(seconds):
     """格式化时间差"""
