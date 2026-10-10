@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Config (contains personal credentials)
+config.json
+
+# Data
+grades_data.json
+
+# Screenshots (root only - exclude random pngs, but keep images/ folder)
+*.png
+!images/*.png
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
